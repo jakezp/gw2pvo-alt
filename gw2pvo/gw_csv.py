@@ -37,8 +37,10 @@ class GoodWeCSV:
     def label(self, field):
         return {
             'status': 'Status',
-            'pgrid_w': 'Power (W)',
+            'pgrid_w': 'PV Power (W)',
+            'load': 'Load (W)',
             'eday_kwh': 'Energy today (kWh)',
+            'energy_used': 'Consumption today (kWh)',
             'etotal_kwh': 'Energy total (kWh)',
         }[field]
 
@@ -46,6 +48,8 @@ class GoodWeCSV:
         return [
             'status',
             'pgrid_w',
+            'load',
             'eday_kwh',
+            'energy_used',
             'etotal_kwh',
         ]

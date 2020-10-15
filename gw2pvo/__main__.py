@@ -30,6 +30,7 @@ __email__ = "mark@paracas.nl"
 __doc__ = "Upload GoodWe power inverter data to PVOutput.org"
 
 last_eday_kwh = 0
+last_energy_used = 0
 
 def get_temperature(settings, latitude, longitude):
     if settings.netatmo_username and settings.netatmo_password and settings.netatmo_client_id and settings.netatmo_client_secret:
@@ -54,13 +55,14 @@ def get_temperature(settings, latitude, longitude):
 
 def run_once(settings, city):
     global last_eday_kwh
+    global last_energy_used
 
     # Check if we only want to run during daylight
     if city:
         now = datetime.time(datetime.now())
-        if now < city.dawn().time() or now > city.dusk().time():
-            logging.debug("Skipped upload as it's night")
-            return
+    #    if now < city.dawn().time() or now > city.dusk().time():
+    #        logging.debug("Skipped upload as it's night")
+    #        return
 
     # Fetch the last reading from GoodWe
     gw = gw_api.GoodWeApi(settings.gw_station_id, settings.gw_account, settings.gw_password)
@@ -83,10 +85,17 @@ def run_once(settings, city):
 
     # Submit reading to PVOutput, if they differ from the previous set
     eday_kwh = data['eday_kwh']
+    energy_used = data['energy_used']
+
     if data['pgrid_w'] == 0 and abs(eday_kwh - last_eday_kwh) < 0.001:
-        logging.debug("Ignore unchanged reading")
+        logging.debug("Ignore unchanged eday_kwh reading")
     else:
         last_eday_kwh = eday_kwh
+
+    if data['load'] == 0 and abs(energy_used - last_energy_used) < 0.001:
+        logging.debug("Ignore unchanged energy_used reading")
+    else:
+        last_energy_used = energy_used
 
     temperature = get_temperature(settings, data['latitude'], data['longitude'])
     if temperature:
@@ -99,7 +108,7 @@ def run_once(settings, city):
 
     if settings.pvo_system_id and settings.pvo_api_key:
         pvo = pvo_api.PVOutputApi(settings.pvo_system_id, settings.pvo_api_key)
-        pvo.add_status(data['pgrid_w'], last_eday_kwh, data.get('temperature'), voltage)
+        pvo.add_status(data['pgrid_w'], last_eday_kwh, data.get('temperature'), voltage, data['energy_used'], data['load'])
     else:
         logging.debug(str(data))
         logging.warning("Missing PVO id and/or key")

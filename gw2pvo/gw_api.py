@@ -48,6 +48,12 @@ class GoodWeApi:
             'etotal_kwh' : 0,
             'grid_voltage' : 0,
             'pv_voltage' : 0,
+            'load' : 0,
+            'soc' : 0,
+            'buy' : 0,
+            'sell' : 0,
+            'meter' : 0,
+            'energy_used' : 0,
             'latitude' : data['info'].get('latitude'),
             'longitude' : data['info'].get('longitude')
         }
@@ -60,13 +66,19 @@ class GoodWeApi:
                 result['pgrid_w'] += inverterData['out_pac']
                 result['grid_voltage'] += self.parseValue(inverterData['output_voltage'], 'V')
                 result['pv_voltage'] += self.calcPvVoltage(inverterData['d'])
+                result['load'] += self.parseValue(data['powerflow']['load'], '(W)')
                 count += 1
             result['eday_kwh'] += inverterData['eday']
             result['etotal_kwh'] += inverterData['etotal']
+            result['buy'] += inverterData['invert_full']['buy']
+            result['sell'] += inverterData['invert_full']['seller']
+            result['soc'] += float(data['powerflow']['soc'])
+            result['energy_used'] += round(data['energeStatisticsCharts']['consumptionOfLoad'], 2)
         if count > 0:
             # These values should not be the sum, but the average
             result['grid_voltage'] /= count
             result['pv_voltage'] /= count
+            result['soc'] /= count
         elif len(data['inverter']) > 0:
             # We have no online inverters, then just pick the first
             inverterData = data['inverter'][0]
@@ -74,8 +86,10 @@ class GoodWeApi:
             result['pgrid_w'] = inverterData['out_pac']
             result['grid_voltage'] = self.parseValue(inverterData['output_voltage'], 'V')
             result['pv_voltage'] = self.calcPvVoltage(inverterData['d'])
+            result['load'] = self.parseValue(data['powerflow']['load'], '(W)')
 
-        message = "{status}, {pgrid_w} W now, {eday_kwh} kWh today, {etotal_kwh} kWh all time, {grid_voltage} V grid, {pv_voltage} V PV".format(**result)
+        message = "Status: {status}\nCurrent PV power: {pgrid_w} W\nCurrent consumption: {load} kW\nCurrent grid voltage: {grid_voltage} V\nCurrent PV voltage: {pv_voltage} V\nTotal PV power generated today: {eday_kwh} kWh\nTotal consumption today: {energy_used} kWh\nTotal power bought today: {buy} kWh\nTotal power sold today: {sell} kWh\nCurrent battery SOC: {soc} %\nAll time total generation: {etotal_kwh} kWh".format(**result)
+
         if result['status'] == 'Normal' or result['status'] == 'Offline':
             logging.info(message)
         else:
@@ -100,6 +114,21 @@ class GoodWeApi:
                 eday_kwh = day['p']
 
         return eday_kwh
+
+    def getActualConsumption(self, date, index):
+        payload = {
+            'id' : self.system_id,
+            'date' : date.strftime('%Y-%m-%d'),
+            'range' : 2,
+            'chartIndexId' : index,
+            'isDetailFull' : ''
+        }
+        data = self.call("v2/Charts/GetChartByPlant", payload)
+        if 'modelData' not in data:
+            logging.warning("GetChartByPlant returned bad data :" + str(data))
+            return []
+
+        return data['modelData']['consumptionOfLoad']
 
     def getLocation(self):
         payload = {
@@ -127,31 +156,51 @@ class GoodWeApi:
 
         return data['pacs']
 
+    def getDayLoad(self, date, index):
+        payload = {
+            'id' : self.system_id,
+            'date' : date.strftime('%Y-%m-%d'),
+            'range' : 2,
+            'chartIndexId' : index,
+            'isDetailFull' : ''
+        }
+        data = self.call("v2/Charts/GetChartByPlant", payload)
+        if 'lines' not in data:
+            logging.warning("GetChartByPlant returned bad data: " + str(data))
+            return []
+
+        return data['lines'][3]['xy']
+
     def getDayReadings(self, date):
         result = self.getLocation()
         pacs = self.getDayPac(date)
+        xy = self.getDayLoad(date, 1)
 
         hours = 0
         kwh = 0
+        c_kwh = 0
         result['entries'] = []
-        for sample in pacs:
-            parsed_date = datetime.strptime(sample['date'], "%m/%d/%Y %H:%M:%S")
+        for p, x in zip(pacs, xy):
+            parsed_date = datetime.strptime(p['date'], "%m/%d/%Y %H:%M:%S")
             next_hours = parsed_date.hour + parsed_date.minute / 60
-            pgrid_w = sample['pac']
-            if pgrid_w > 0:
+            pgrid_w = p['pac']
+            load = x['y']
+            if pgrid_w >= 0:
                 kwh += pgrid_w / 1000 * (next_hours - hours)
+                c_kwh += load /1000 * (next_hours - hours)
                 result['entries'].append({
                     'dt' : parsed_date,
                     'pgrid_w': pgrid_w,
-                    'eday_kwh': round(kwh, 3)
+                    'load': load,
+                    'eday_kwh': round(kwh, 3),
+                    'energy_used' : round(c_kwh, 3)
                 })
             hours = next_hours
-
-        eday_kwh = self.getActualKwh(date)
-        if eday_kwh > 0:
-            correction = eday_kwh / kwh
+        energy_used = self.getActualConsumption(date, 7)
+        if energy_used > 0:
+            correction = energy_used / c_kwh
             for sample in result['entries']:
-                sample['eday_kwh'] *= correction
+                sample['energy_used'] *= correction
 
         return result
 

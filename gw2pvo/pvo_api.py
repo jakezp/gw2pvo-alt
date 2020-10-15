@@ -13,13 +13,15 @@ class PVOutputApi:
         self.m_system_id = system_id
         self.m_api_key = api_key
 
-    def add_status(self, pgrid_w, eday_kwh, temperature, voltage):
+    def add_status(self, pgrid_w, eday_kwh, temperature, voltage, energy_used, load):
         t = time.localtime()
         payload = {
             'd' : "{:04}{:02}{:02}".format(t.tm_year, t.tm_mon, t.tm_mday),
             't' : "{:02}:{:02}".format(t.tm_hour, t.tm_min),
             'v1' : round(eday_kwh * 1000),
-            'v2' : round(pgrid_w)
+            'v2' : round(pgrid_w),
+            'v3' : round(energy_used * 1000),
+            'v4' : round(load)
         }
 
         if temperature is not None:
@@ -28,13 +30,10 @@ class PVOutputApi:
         if voltage is not None:
             payload['v6'] = voltage
 
-        # Disable upload to PVOutput while testing
         #self.call("https://pvoutput.org/service/r2/addstatus.jsp", payload)
         print (payload)
 
     def add_day(self, data, temperatures):
-        # Send day data in batches of 30.
-
         for chunk in [ data[i:i + 30] for i in range(0, len(data), 30) ]:
 
             readings = []
@@ -44,22 +43,24 @@ class PVOutputApi:
                     dt.strftime('%Y%m%d'),
                     dt.strftime('%H:%M'),
                     str(round(reading['eday_kwh'] * 1000)),
-                    str(reading['pgrid_w'])
+                    str(reading['pgrid_w']),
+                    str(round(reading['energy_used'] * 1000)),
+                    str(reading['load'])
                 ]
-
                 if temperatures is not None:
-                    fields.append('')
-                    fields.append('')
-                    temperature = list(filter(lambda x: dt.timestamp() > x['time'], temperatures))[-1]
-                    fields.append(str(temperature['temperature']))
-
+                    try:
+                        fields.append('')
+                        fields.append('')
+                        temperature = list(filter(lambda x: dt.timestamp() >= x['time'], temperatures))[-1]
+                        fields.append(str(temperature['temperature']))
+                    except:
+                        print ()
                 readings.append(",".join(fields))
 
             payload = {
                 'data' : ";".join(readings)
             }
 
-            # Disable upload to PVOutput while testing
             #self.call("https://pvoutput.org/service/r2/addbatchstatus.jsp", payload)
             print (payload)
 
