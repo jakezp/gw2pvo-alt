@@ -30,8 +30,8 @@ class PVOutputApi:
         if voltage is not None:
             payload['v6'] = voltage
 
-        #self.call("https://pvoutput.org/service/r2/addstatus.jsp", payload)
-        print (payload)
+        self.call("https://pvoutput.org/service/r2/addstatus.jsp", payload)
+        #print (payload)
 
     def add_day(self, data, temperatures):
         for chunk in [ data[i:i + 30] for i in range(0, len(data), 30) ]:
@@ -61,8 +61,8 @@ class PVOutputApi:
                 'data' : ";".join(readings)
             }
 
-            #self.call("https://pvoutput.org/service/r2/addbatchstatus.jsp", payload)
-            print (payload)
+            self.call("https://pvoutput.org/service/r2/addbatchstatus.jsp", payload)
+            #print (payload)
 
     def call(self, url, payload):
         logging.debug(payload)
