@@ -18,6 +18,7 @@ from astral.location import Location
 from gw2pvo import ds_api
 from gw2pvo import ow_api
 from gw2pvo import gw_api
+from gw2pvo import mqtt
 from gw2pvo import netatmo_api
 from gw2pvo import gw_csv
 from gw2pvo import pvo_api
@@ -64,9 +65,16 @@ def run_once(settings, city):
     #        logging.debug("Skipped upload as it's night")
     #        return
 
+    # Fetch the last reading from MQTT
+    if settings.mqtt_host:
+        if settings.gw_station_id:
+            sys.exit("Bad configuration options. Choose either Goodwe or MQTT as source for inverter data. Both cannot be used simultaniously.")
+        mq = mqtt.MQTT(settings.mqtt_host, settings.mqtt_user, settings.mqtt_password, settings.mqtt_topic)
+        data = mq.getCurrentReadings()
+    elif settings.gw_station_id:
     # Fetch the last reading from GoodWe
-    gw = gw_api.GoodWeApi(settings.gw_station_id, settings.gw_account, settings.gw_password)
-    data = gw.getCurrentReadings()
+        gw = gw_api.GoodWeApi(settings.gw_station_id, settings.gw_account, settings.gw_password)
+        data = gw.getCurrentReadings()
 
     # Check if we want to abort when offline
     if settings.skip_offline:
@@ -97,10 +105,11 @@ def run_once(settings, city):
     else:
         last_energy_used = energy_used
 
-    temperature = get_temperature(settings, data['latitude'], data['longitude'])
-    if temperature:
-        logging.info("Current local temperature is {:.1f} °C".format(temperature))
-        data['temperature'] = temperature
+    if settings.gw_station_id:
+        temperature = get_temperature(settings, data['latitude'], data['longitude'])
+        if temperature:
+            logging.info("Current local temperature is {:.1f} °C".format(temperature))
+            data['temperature'] = temperature
 
     voltage = data['grid_voltage']
     if settings.pv_voltage:
@@ -114,6 +123,10 @@ def run_once(settings, city):
         logging.warning("Missing PVO id and/or key")
 
 def copy(settings):
+    # Check that MQTT config is not used
+    if settings.mqtt_host:
+        sys.exit("Bad configuration options. MQTT cannot be used for backfilling historic data. Remove MQTT options from configuration and specify Goodwe (SEMS Portal details).")
+
     # Fetch readings from GoodWe
     date = datetime.strptime(settings.date, "%Y-%m-%d")
     gw = gw_api.GoodWeApi(settings.gw_station_id, settings.gw_account, settings.gw_password)
@@ -173,6 +186,10 @@ def run():
     parser.add_argument("--gw-station-id", help="GoodWe station ID", metavar='ID')
     parser.add_argument("--gw-account", help="GoodWe account", metavar='ACCOUNT')
     parser.add_argument("--gw-password", help="GoodWe password", metavar='PASSWORD')
+    parser.add_argument("--mqtt-host", help="MQTT hostname", metavar='MQTT_HOST')
+    parser.add_argument("--mqtt-user", help="MQTT username", metavar='MQTT_USER')
+    parser.add_argument("--mqtt-password", help="MQTT password", metavar='MQTT_PASS')
+    parser.add_argument("--mqtt-topic", help="MQTT topic", metavar='MQTT_TOPIC')
     parser.add_argument("--pvo-system-id", help="PVOutput system ID", metavar='ID')
     parser.add_argument("--pvo-api-key", help="PVOutput API key", metavar='KEY')
     parser.add_argument("--pvo-interval", help="PVOutput interval in minutes", type=int, choices=[5, 10, 15])
@@ -204,7 +221,8 @@ def run():
         args.skip_offline = args.skip_offline.lower() in ['true', 'yes', 'on', '1']
 
     if args.gw_station_id is None or args.gw_account is None or args.gw_password is None:
-        sys.exit("Missing --gw-station-id, --gw-account and/or --gw-password")
+        if args.mqtt_host is None or args.mqtt_topic is None:
+            sys.exit("Missing configuation. Either MQTT configuration or Goodwe (SEMS Portal) credentails need to be provided.\nPlease add either --gw-station-id, --gw-account and --gw-password OR add --mqtt-host and --mqtt-topic (at a minimum). Alternatively, one of these options can also be configured in a configuration file.")
 
     if args.city:
         city = Location(lookup(args.city, database()))
