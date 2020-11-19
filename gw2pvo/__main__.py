@@ -69,7 +69,7 @@ def run_once(settings, city):
     if settings.mqtt_host:
         if settings.gw_station_id:
             sys.exit("Bad configuration options. Choose either Goodwe or MQTT as source for inverter data. Both cannot be used simultaniously.")
-        mq = mqtt.MQTT(settings.mqtt_host, settings.mqtt_user, settings.mqtt_password, settings.mqtt_topic)
+        mq = mqtt.MQTT(settings.mqtt_host, settings.mqtt_port, settings.mqtt_user, settings.mqtt_password, settings.mqtt_topic)
         data = mq.getCurrentReadings()
     elif settings.gw_station_id:
     # Fetch the last reading from GoodWe
@@ -187,6 +187,7 @@ def run():
     parser.add_argument("--gw-account", help="GoodWe account", metavar='ACCOUNT')
     parser.add_argument("--gw-password", help="GoodWe password", metavar='PASSWORD')
     parser.add_argument("--mqtt-host", help="MQTT hostname", metavar='MQTT_HOST')
+    parser.add_argument("--mqtt-port", help="MQTT port", metavar='MQTT_USER')
     parser.add_argument("--mqtt-user", help="MQTT username", metavar='MQTT_USER')
     parser.add_argument("--mqtt-password", help="MQTT password", metavar='MQTT_PASS')
     parser.add_argument("--mqtt-topic", help="MQTT topic", metavar='MQTT_TOPIC')

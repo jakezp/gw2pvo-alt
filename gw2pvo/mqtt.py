@@ -11,19 +11,20 @@ __credit__ = "https://github.com/jkairys/mqtt-pvoutput-bridge"
 
 class MQTT:
 
-    def __init__(self, mqtt_host, mqtt_user, mqtt_password, mqtt_topic):
+    def __init__(self, mqtt_host, mqtt_port, mqtt_user, mqtt_password, mqtt_topic):
         self.mqtt_host = mqtt_host
+        self.mqtt_port = mqtt_port
         self.mqtt_user = mqtt_user
         self.mqtt_password = mqtt_password
         self.mqtt_topic = mqtt_topic
         self.raw_data = {}
 
-    def mqtt_server_connection(self, mqtt_host, mqtt_user, mqtt_password, mqtt_topic):
+    def mqtt_server_connection(self, mqtt_host, mqtt_port, mqtt_user, mqtt_password, mqtt_topic):
         client = mqtt.Client()
         client.on_connect = self.on_connect
         client.on_message = self.on_message
-        client.username_pw_set(username=self.mqtt_user, password=self.mqtt_password)
-        client.connect(self.mqtt_host)
+        client.username_pw_set(self.mqtt_user, password=self.mqtt_password)
+        client.connect(self.mqtt_host, port=int(mqtt_port))
         client.loop_start()
         time.sleep(10)
         raw_data = self.raw_data
@@ -46,7 +47,7 @@ class MQTT:
             self.raw_data[reading] = payload
 
     def getCurrentReadings(self):
-        data = self.mqtt_server_connection(self.mqtt_host, self.mqtt_user, self.mqtt_password, self.mqtt_topic)
+        data = self.mqtt_server_connection(self.mqtt_host, self.mqtt_port, self.mqtt_user, self.mqtt_password, self.mqtt_topic)
         result = {
             'status' : '',
             'pgrid_w' : 0,
