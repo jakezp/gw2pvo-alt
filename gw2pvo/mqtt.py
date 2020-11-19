@@ -1,6 +1,7 @@
 import paho.mqtt.client as mqtt
 import time
 import logging
+from datetime import datetime
 
 __author__ = "Jacqueco Peenz"
 __copyright__ = "Copyright 2020, Jacqueco Peenz"
@@ -31,8 +32,9 @@ class MQTT:
         return self.raw_data
 
     def on_connect(self, client, userdata, flags, rc):
-        logging.info("Connected to MQTT broker with result code "+str(rc))
-        logging.info("Grabbing latest inverter data from topic: " + str(self.mqtt_topic))
+        currentTime = datetime.now()
+        #logging.info(str(currentTime) + "Connected to MQTT broker with result code " + str(rc))
+        logging.info(str(currentTime) + "Grabbing latest inverter data from topic: " + str(self.mqtt_topic))
         client.subscribe(str(self.mqtt_topic)+"/#")
 
     def on_message(self, client, userdata, msg):
