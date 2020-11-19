@@ -21,7 +21,7 @@ class MQTT:
         client = mqtt.Client()
         client.on_connect = self.on_connect
         client.on_message = self.on_message
-        client.username_pw_set(username=self.mqtt_user, password=mqtt_password)
+        client.username_pw_set(username=self.mqtt_user, password=self.mqtt_password)
         client.connect(self.mqtt_host)
         client.loop_start()
         time.sleep(10)
