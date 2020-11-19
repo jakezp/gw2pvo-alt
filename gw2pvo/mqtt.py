@@ -33,8 +33,8 @@ class MQTT:
 
     def on_connect(self, client, userdata, flags, rc):
         currentTime = datetime.now()
-        #logging.info(str(currentTime) + "Connected to MQTT broker with result code " + str(rc))
-        logging.info(str(currentTime) + "Grabbing latest inverter data from topic: " + str(self.mqtt_topic))
+        #logging.info(str(currentTime) + " - Connected to MQTT broker with result code " + str(rc))
+        logging.info(str(currentTime) + " - Grabbing latest inverter data from topic: " + str(self.mqtt_topic))
         client.subscribe(str(self.mqtt_topic)+"/#")
 
     def on_message(self, client, userdata, msg):
