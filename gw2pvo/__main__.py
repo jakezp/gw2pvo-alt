@@ -8,9 +8,10 @@ import logging
 import argparse
 import locale
 import time
+import telegram
+
 from datetime import datetime
 from configparser import ConfigParser
-
 from astral import LocationInfo
 from astral.geocoder import lookup, database
 from astral.location import Location
@@ -32,6 +33,13 @@ __doc__ = "Upload GoodWe power inverter data to PVOutput.org"
 
 last_eday_kwh = 0
 last_energy_used = 0
+
+# Telegram
+def telegram_notify(telegram_token, telegram_chatid, message):
+    token = telegram_token
+    chat_id = telegram_chatid
+    bot = telegram.Bot(token=token)
+    bot.sendMessage(chat_id=chat_id, text=message)
 
 def get_temperature(settings, latitude, longitude):
     if settings.netatmo_username and settings.netatmo_password and settings.netatmo_client_id and settings.netatmo_client_secret:
@@ -194,6 +202,8 @@ def run():
     parser.add_argument("--pvo-system-id", help="PVOutput system ID", metavar='ID')
     parser.add_argument("--pvo-api-key", help="PVOutput API key", metavar='KEY')
     parser.add_argument("--pvo-interval", help="PVOutput interval in minutes", type=int, choices=[5, 10, 15])
+    parser.add_argument("--telegram-token", help="Telegram bot token", metavar='TELEGRAM_TOKEN')
+    parser.add_argument("--telegram-chatid", help="Telegram chat id", metavar='TELEGRAM_CHATID')
     parser.add_argument("--darksky-api-key", help="Dark Sky Weather API key")
     parser.add_argument("--openweather-api-key", help="Open Weather API key")
     parser.add_argument("--netatmo-username", help="Netatmo username")
@@ -252,6 +262,8 @@ def run():
             sys.exit(1)
         except Exception as exp:
             logging.error(exp)
+            publishError = ("Failed to publish data PVOutput - " + str(exp))
+            telegram_notify(args.telegram_token, args.telegram_chatid, publishError)
 
         if args.pvo_interval is None:
             break
