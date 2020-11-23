@@ -42,19 +42,7 @@ def telegram_notify(telegram_token, telegram_chatid, message):
     bot.sendMessage(chat_id=chat_id, text=message)
 
 def get_temperature(settings, latitude, longitude):
-    if settings.netatmo_username and settings.netatmo_password and settings.netatmo_client_id and settings.netatmo_client_secret:
-        netatmo = netatmo_api.NetatmoApi(
-            settings.netatmo_username,
-            settings.netatmo_password,
-            settings.netatmo_client_id,
-            settings.netatmo_client_secret,
-        )
-        netatmo.authorize()
-        if settings.netatmo_device_id:
-            return netatmo.get_device_temperature(settings.netatmo_device_id)
-        else:
-            return netatmo.get_location_temperature(latitude, longitude)
-    elif settings.darksky_api_key:
+    if settings.darksky_api_key:
         ds = ds_api.DarkSkyApi(settings.darksky_api_key)
         return ds.get_temperature(latitude, longitude)
     elif settings.openweather_api_key:
@@ -73,17 +61,17 @@ def run_once(settings, city):
     #        logging.debug("Skipped upload as it's night")
     #        return
 
-    # Fetch the last reading from MQTT
     if settings.mqtt_host:
         if settings.gw_station_id:
-            sys.exit("Bad configuration options. Choose either Goodwe or MQTT as source for inverter data. Both cannot be used simultaniously.")
-        mq = mqtt.MQTT(settings.mqtt_host, settings.mqtt_port, settings.mqtt_user, settings.mqtt_password, settings.mqtt_topic)
-        data = mq.getCurrentReadings()
+            logging.error("Bad configuration options. Choose either Goodwe or MQTT as source for inverter data. Both cannot be used simultaniously.")
+            sys.exit(1)
+    # Fetch the latest reading from MQTT broker
+        mqtt_broker = mqtt.MQTT(settings.telegram_token, settings.telegram_chatid, settings.mqtt_host, settings.mqtt_port, settings.mqtt_user, settings.mqtt_password, settings.mqtt_topic)
+        data = mqtt_broker.getCurrentReadings()
     elif settings.gw_station_id:
     # Fetch the last reading from GoodWe
-        gw = gw_api.GoodWeApi(settings.gw_station_id, settings.gw_account, settings.gw_password)
-        data = gw.getCurrentReadings()
-
+        goodwe = gw_api.GoodWeApi(settings.gw_station_id, settings.gw_account, settings.gw_password)
+        data = goodwe.getCurrentReadings()
     # Check if we want to abort when offline
     if settings.skip_offline:
         if data['status'] == 'Offline':
@@ -113,10 +101,10 @@ def run_once(settings, city):
     else:
         last_energy_used = energy_used
 
+    # Get the temperature if pulling data from GoodWe
     if settings.gw_station_id:
         temperature = get_temperature(settings, data['latitude'], data['longitude'])
         if temperature:
-            logging.info("Current local temperature is {:.1f} °C".format(temperature))
             data['temperature'] = temperature
 
     voltage = data['grid_voltage']
@@ -124,21 +112,23 @@ def run_once(settings, city):
         voltage=data['pv_voltage']
 
     if settings.pvo_system_id and settings.pvo_api_key:
-        pvo = pvo_api.PVOutputApi(settings.pvo_system_id, settings.pvo_api_key)
+        pvo = pvo_api.PVOutputApi(settings.telegram_token, settings.telegram_chatid, settings.pvo_system_id, settings.pvo_api_key)
         pvo.add_status(data['pgrid_w'], last_eday_kwh, data.get('temperature'), voltage, data['energy_used'], data['load'])
     else:
         logging.debug(str(data))
         logging.warning("Missing PVO id and/or key")
 
+# Get historic data from GoodWe and publish to PVOutput
 def copy(settings):
-    # Check that MQTT config is not used
+    # Confirm that MQTT config is not used for historic data
     if settings.mqtt_host:
-        sys.exit("Bad configuration options. MQTT cannot be used for backfilling historic data. Remove MQTT options from configuration and specify Goodwe (SEMS Portal details).")
+        logging.error("Bad configuration options. MQTT cannot be used for backfilling historic data. Remove MQTT options from configuration and specify Goodwe (SEMS Portal details).")
+        sys.exit(1)
 
     # Fetch readings from GoodWe
     date = datetime.strptime(settings.date, "%Y-%m-%d")
-    gw = gw_api.GoodWeApi(settings.gw_station_id, settings.gw_account, settings.gw_password)
-    data = gw.getDayReadings(date)
+    goodwe = gw_api.GoodWeApi(settings.gw_station_id, settings.gw_account, settings.gw_password)
+    data = goodwe.getDayReadings(date)
 
     if settings.pvo_system_id and settings.pvo_api_key:
         if settings.darksky_api_key:
@@ -151,7 +141,7 @@ def copy(settings):
             temperatures = None
 
         # Submit readings to PVOutput
-        pvo = pvo_api.PVOutputApi(settings.pvo_system_id, settings.pvo_api_key)
+        pvo = pvo_api.PVOutputApi(settings.telegram_token, settings.telegram_chatid, settings.pvo_system_id, settings.pvo_api_key)
         pvo.add_day(data['entries'], temperatures)
     else:
         for entry in data['entries']:
@@ -161,6 +151,11 @@ def copy(settings):
                 entry['eday_kwh'],
             ))
         logging.warning("Missing PVO id and/or key")
+
+def copy_csv(settings):
+    pvo = pvo_api.PVOutputApi(settings.telegram_token, settings.telegram_chatid, settings.pvo_system_id, settings.pvo_api_key)
+    pvo.add_day_csv(settings.upload_csv)
+    sys.exit(0)
 
 def run():
     defaults = {
@@ -175,7 +170,7 @@ def run():
     )
     conf_parser.add_argument("--config", help="Specify config file", metavar='FILE')
     args, remaining_argv = conf_parser.parse_known_args()
-
+    
     # Read configuration file and add it to the defaults hash.
     if args.config:
         config = ConfigParser()
@@ -183,7 +178,8 @@ def run():
         if "Defaults" in config:
             defaults.update(dict(config.items("Defaults")))
         else:
-            sys.exit("Bad config file, missing Defaults section")
+            logging.error("Bad config file, missing Defaults section")
+            sys.exit(1)
 
     # Parse rest of arguments
     parser = argparse.ArgumentParser(
@@ -206,13 +202,9 @@ def run():
     parser.add_argument("--telegram-chatid", help="Telegram chat id", metavar='TELEGRAM_CHATID')
     parser.add_argument("--darksky-api-key", help="Dark Sky Weather API key")
     parser.add_argument("--openweather-api-key", help="Open Weather API key")
-    parser.add_argument("--netatmo-username", help="Netatmo username")
-    parser.add_argument("--netatmo-password", help="Netatmo password")
-    parser.add_argument("--netatmo-client-id", help="Netatmo OAuth client id")
-    parser.add_argument("--netatmo-client-secret", help="Netatmo OAuth client secret")
-    parser.add_argument("--netatmo-device-id", help="Netatmo device id")
     parser.add_argument("--log", help="Set log level (default info)", choices=['debug', 'info', 'warning', 'critical'])
     parser.add_argument("--date", help="Copy all readings (max 14/90 days ago)", metavar='YYYY-MM-DD')
+    parser.add_argument("--upload-csv", help="Upload all readings from csv file (max 14/90 days ago)")
     parser.add_argument("--pv-voltage", help="Send pv voltage instead of grid voltage", action='store_true')
     parser.add_argument("--skip-offline", help="Skip uploads when inverter is offline", action='store_true')
     parser.add_argument("--city", help="Sets timezone and skip uploads from dusk till dawn")
@@ -231,9 +223,11 @@ def run():
     if isinstance(args.skip_offline, str):
         args.skip_offline = args.skip_offline.lower() in ['true', 'yes', 'on', '1']
 
-    if args.gw_station_id is None or args.gw_account is None or args.gw_password is None:
-        if args.mqtt_host is None or args.mqtt_topic is None:
-            sys.exit("Missing configuation. Either MQTT configuration or Goodwe (SEMS Portal) credentails need to be provided.\nPlease add either --gw-station-id, --gw-account and --gw-password OR add --mqtt-host and --mqtt-topic (at a minimum). Alternatively, one of these options can also be configured in a configuration file.")
+    if args.upload_csv is None:
+        if args.gw_station_id is None or args.gw_account is None or args.gw_password is None:
+            if args.mqtt_host is None or args.mqtt_topic is None:
+                logging.error("Missing configuation. Either MQTT configuration or Goodwe (SEMS Portal) credentails need to be provided.\nPlease add either --gw-station-id, --gw-account and --gw-password OR add --mqtt-host and --mqtt-topic (at a minimum). Alternatively, one of these options can also be configured in a configuration file.")
+                sys.exit(1)
 
     if args.city:
         city = Location(lookup(args.city, database()))
@@ -252,18 +246,25 @@ def run():
         except Exception as exp:
             logging.error(exp)
         sys.exit()
+    elif args.upload_csv:
+        try: 
+            copy_csv(args)
+        except Exception as exp:
+            logging.error(exp)
+            sys.exit(1)
 
     startTime = datetime.now()
 
     while True:
+        currentTime = datetime.now()
         try:
             run_once(args, city)
         except KeyboardInterrupt:
             sys.exit(1)
         except Exception as exp:
-            logging.error(exp)
-            publishError = ("Failed to publish data PVOutput - " + str(exp))
-            telegram_notify(args.telegram_token, args.telegram_chatid, publishError)
+            errorMsg = ("Failed to publish data PVOutput - " + str(exp))
+            logging.error(str(currentTime) + " - " + str(errorMsg))
+            telegram_notify(args.telegram_token, args.telegram_chatid, errorMsg)
 
         if args.pvo_interval is None:
             break

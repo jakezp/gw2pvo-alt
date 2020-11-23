@@ -210,6 +210,7 @@ class GoodWeApi:
                 headers = {
                     'User-Agent': 'SEMS Portal/3.1 (iPhone; iOS 13.5.1; Scale/2.00)',
                     'Token': self.token,
+                    'ContentLength': str(250)
                 }
 
                 r = requests.post(self.base_url + url, headers=headers, data=payload, timeout=10)
