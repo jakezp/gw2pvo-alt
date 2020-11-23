@@ -32,11 +32,9 @@ class GoodWeCSV:
             return "{:n}".format(value)
         if type(value) is list:
             return "/".join([self.format_field(v) for v in value])
-        print(value)
         return value
 
     def label(self, field):
-        print(field)
         return {
             'date': 'date',
             'eday_kwh': 'eday_kwh',
