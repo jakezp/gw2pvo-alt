@@ -38,6 +38,7 @@ class MQTT:
     def mqtt_server_connection(self, telegram_token, telegram_chatid, mqtt_host, mqtt_port, mqtt_user, mqtt_password, mqtt_topic):
         currentTime = datetime.now()
         try:
+            tries = 5
             client = self.client
             client.on_connect = self.on_connect
             client.on_message = self.on_message
@@ -45,11 +46,17 @@ class MQTT:
             client.connect(self.mqtt_host, port=int(mqtt_port))
             client.loop_start()
             if not client.connected_flag and not client.bad_connection_flag:
-                time.sleep(15)
+                time.sleep(5)
             if client.bad_connection_flag:
                 client.loop_stop()
                 sys.exit(1)
-            raw_data = self.raw_data
+            for i in range(tries):
+                raw_data = self.raw_data
+                if not 'work_mode_label' in raw_data:
+                    logging.info("Failed to get all values from mqtt broker. Retrying: " + str(i))
+                    time.sleep(5)
+                else:
+                    break
             client.loop_stop()
             return self.raw_data
         except Exception as exp:
