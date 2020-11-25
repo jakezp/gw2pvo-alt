@@ -102,11 +102,11 @@ class MQTT:
         result['grid_voltage'] = float(data['vgrid'])
         result['pv_voltage'] = float(data['vpv1'])
         result['load'] = float(data['house_consumption'])
-        result['eday_kwh'] = float(data['v1'])
+        result['eday_kwh'] = float(data['pv_daily'])
         result['etotal_kwh'] = float(data['e_total'])
         result['soc'] = data['battery_soc']
-        result['energy_used'] = float(data['v3'])
-        result['temperature'] = data['v5']
+        result['energy_used'] = float(data['house_consumption_daily'])
+        result['temperature'] = data['outside_temperature']
         result['date'] = datetime.strptime(str(data['date']), '%Y-%m-%dT%H:%M:%S').strftime('%Y-%m-%d %H:%M')
 
         message = "Status: {status}, Temperature is {temperature} degrees, Current PV power: {pgrid_w} W, Current consumption: {load} kW, Current grid voltage: {grid_voltage} V, Current PV voltage: {pv_voltage} V, Total PV power generated today: {eday_kwh} kWh, Total consumption today: {energy_used} kWh, Current battery SOC: {soc} %, All time total generation: {etotal_kwh} kWh".format(**result)
