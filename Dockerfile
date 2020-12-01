@@ -9,6 +9,6 @@ RUN apk add --no-cache python3 libffi openssl tzdata bash gcc g++ python3-dev li
     rm -r /root/.cache && \
     pip install paho-mqtt python-telegram-bot && \
     pip install https://github.com/sffjunkie/astral/archive/1.10.1.tar.gz && \
-    pip install https://github.com/jakezp/gw2pvo-alt/raw/main/dist/gw2pvo-1.5.1-alt.tar.gz
+    pip install https://github.com/jakezp/gw2pvo-alt/raw/main/dist/gw2pvo-1.5.2.tar.gz
 
 ENTRYPOINT exec /usr/bin/gw2pvo --config gw2pvo.cfg

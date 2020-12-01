@@ -52,11 +52,30 @@ class MQTT:
                 sys.exit(1)
             for i in range(tries):
                 raw_data = self.raw_data
-                if not 'work_mode_label' in raw_data:
-                    logging.info("Failed to get all values from mqtt broker. Retrying: " + str(i))
+                #if not 'ppv' or not 'vgrid' or not 'vpv1' or not 'house_consumption' or not 'pv_daily' or not 'house_consumption_daily' or not 'temperature' in raw_data:      
+                if not 'pv_daily' in raw_data:
+                    logging.info("Failed to get 'pv_daily' values from mqtt broker. Retrying: " + str(i))
+                    time.sleep(5)
+                elif not 'house_consumption_daily' in raw_data:
+                    logging.info("Failed to get 'house_consumption_daily' values from mqtt broker. Retrying: " + str(i))
+                    time.sleep(5)
+                elif not 'temperature' in raw_data:
+                    logging.info("Failed to get 'temperature' values from mqtt broker. Retrying: " + str(i))
+                    time.sleep(5)
+                elif not 'vpv1' in raw_data:
+                    logging.info("Failed to get 'vpv1' values from mqtt broker. Retrying: " + str(i))
                     time.sleep(5)
                 elif not 'ppv' in raw_data:
-                    logging.info("Failed to get all values from mqtt broker. Retrying: " + str(i))
+                    logging.info("Failed to get 'ppv' values from mqtt broker. Retrying: " + str(i))
+                    time.sleep(5)
+                elif not 'vgrid' in raw_data:
+                    logging.info("Failed to get 'vgrid' values from mqtt broker. Retrying: " + str(i))
+                    time.sleep(5)
+                elif not 'work_mode_label' in raw_data:
+                    logging.info("Failed to get 'work_mode_label' values from mqtt broker. Retrying: " + str(i))
+                    time.sleep(5)
+                elif not 'house_consumption' in raw_data:
+                    logging.info("Failed to get 'house_consumption' values from mqtt broker. Retrying: " + str(i))
                     time.sleep(5)
                 else:
                     break
@@ -94,32 +113,27 @@ class MQTT:
         data = self.mqtt_server_connection(self.telegram_token, self.telegram_chatid, self.mqtt_host, self.mqtt_port, self.mqtt_user, self.mqtt_password, self.mqtt_topic)
         result = {
             'status' : '',
-            'pgrid_w' : 0,
             'eday_kwh' : 0,
-            'etotal_kwh' : 0,
+            'pgrid_w' : 0,
+            'energy_used' : 0,
+            'load' : 0,
+            'temperature' : 0,
             'grid_voltage' : 0,
             'pv_voltage' : 0,
-            'load' : 0,
-            'soc' : 0,
-            'meter' : 0,
-            'energy_used' : 0,
-            'temperature' : 0,
             'date' : 0
         }
 
         result['status'] = data['work_mode_label']
+        result['eday_kwh'] = float(data['pv_daily'])
         result['pgrid_w'] = float(data['ppv'])
+        result['energy_used'] = float(data['house_consumption_daily'])
+        result['load'] = float(data['house_consumption'])
+        result['temperature'] = data['outside_temperature']
         result['grid_voltage'] = float(data['vgrid'])
         result['pv_voltage'] = float(data['vpv1'])
-        result['load'] = float(data['house_consumption'])
-        result['eday_kwh'] = float(data['pv_daily'])
-        result['etotal_kwh'] = float(data['e_total'])
-        result['soc'] = data['battery_soc']
-        result['energy_used'] = float(data['house_consumption_daily'])
-        result['temperature'] = data['outside_temperature']
         result['date'] = datetime.strptime(str(data['date']), '%Y-%m-%dT%H:%M:%S').strftime('%Y-%m-%d %H:%M')
-
-        message = "Status: {status}, Temperature is {temperature} degrees, Current PV power: {pgrid_w} W, Current consumption: {load} kW, Current grid voltage: {grid_voltage} V, Current PV voltage: {pv_voltage} V, Total PV power generated today: {eday_kwh} kWh, Total consumption today: {energy_used} kWh, Current battery SOC: {soc} %, All time total generation: {etotal_kwh} kWh".format(**result)
+        
+        message = "Status: {status}, Current PV power: {pgrid_w}W, Total PV power generated today: {eday_kwh}kWh, Current consumption: {load}kW, Total consumption today: {energy_used}kWh, Current grid voltage: {grid_voltage}V, Current PV voltage: {pv_voltage}V, Temperature is {temperature} degrees".format(**result)
 
         logging.info(message)
         return result
