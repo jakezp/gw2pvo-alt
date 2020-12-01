@@ -46,13 +46,16 @@ class MQTT:
             client.connect(self.mqtt_host, port=int(mqtt_port))
             client.loop_start()
             if not client.connected_flag and not client.bad_connection_flag:
-                time.sleep(5)
+                time.sleep(12)
             if client.bad_connection_flag:
                 client.loop_stop()
                 sys.exit(1)
             for i in range(tries):
                 raw_data = self.raw_data
                 if not 'work_mode_label' in raw_data:
+                    logging.info("Failed to get all values from mqtt broker. Retrying: " + str(i))
+                    time.sleep(5)
+                elif not 'ppv' in raw_data:
                     logging.info("Failed to get all values from mqtt broker. Retrying: " + str(i))
                     time.sleep(5)
                 else:
