@@ -149,11 +149,17 @@ class PVOutputApi:
             except requests.exceptions.RequestException as arg:
                 warningMsg = (r.text or str(arg))
                 logging.warning(warningMsg)
-                self.telegram_notify(self.telegram_token, self.telegram_chatid, warningMsg)
+                try:
+                    self.telegram_notify(self.telegram_token, self.telegram_chatid, warningMsg)
+                except Exception as exp:
+                    logging.error(str(currentTime) + " - Failed to send telegram notification - " + str(exp))
 
             time.sleep(i ** 3)
         else:
             errorMsg = ("Failed to call PVOutput API")
             logging.error(errorMsg)
-            self.telegram_notify(self.telegram_token, self.telegram_chatid, errorMsg)
+            try:
+                self.telegram_notify(self.telegram_token, self.telegram_chatid, errorMsg)
+            except Exception as exp:
+                logging.error(str(currentTime) + " - Failed to send telegram notification - " + str(exp))
 

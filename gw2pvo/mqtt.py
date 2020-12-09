@@ -85,7 +85,11 @@ class MQTT:
             errorMsg = ("Unable to connect mqtt broker - " + str(self.mqtt_host) + " - Reason: " + str(exp))
             logging.error(str(currentTime) + " - " + str(errorMsg))
             telegramMsg = ("[gw2pvo-alt] " + str(errorMsg))
-            self.telegram_notify(self.telegram_token, self.telegram_chatid, telegramMsg)
+            try:
+                self.telegram_notify(self.telegram_token, self.telegram_chatid, telegramMsg)
+            except Exception as exp:
+                logging.error(str(currentTime) + " - Failed to send telegram notification - " + str(exp))
+            
             sys.exit(1)
 
     def on_connect(self, client, userdata, flags, rc):
@@ -100,7 +104,10 @@ class MQTT:
             errorMsg = ("Unable to connect mqtt broker - " + str(self.mqtt_host) + " - Result: " + str(rc))
             logging.error(str(currentTime) + " - " + str(errorMsg))
             telegramMsg = ("[gw2pvo-alt] " + str(errorMsg))
-            self.telegram_notify(self.telegram_token, self.telegram_chatid, telegramMsg)
+            try:
+                self.telegram_notify(self.telegram_token, self.telegram_chatid, telegramMsg)
+            except Exception as exp:
+                logging.error(str(currentTime) + " - Failed to send telegram notification - " + str(exp))
 
     def on_message(self, client, userdata, msg):
         payload = str(msg.payload.decode('utf-8'))

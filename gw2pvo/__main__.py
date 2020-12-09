@@ -265,7 +265,10 @@ def run():
         except Exception as exp:
             errorMsg = ("Failed to publish data PVOutput - " + str(exp))
             logging.error(str(currentTime) + " - " + str(errorMsg))
-            telegram_notify(args.telegram_token, args.telegram_chatid, errorMsg)
+            try:
+                telegram_notify(args.telegram_token, args.telegram_chatid, errorMsg)
+            except Exception as exp:
+                logging.error(str(currentTime) + " - Failed to send telegram notification - " + str(exp))
 
         if args.pvo_interval is None:
             break
